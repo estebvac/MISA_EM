@@ -36,6 +36,6 @@ class ClustersStatisticsList:
 
         self.cluster_statistics_list = []
         for cluster in range(self.clusters):
-            cluster_statistics =\
+            cluster_statistics = \
                 ClusterStatistics(weights[:, cluster], data_points)
             self.cluster_statistics_list.append(cluster_statistics)

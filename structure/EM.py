@@ -3,25 +3,30 @@ from tqdm import tqdm
 import cv2
 from .ClusterStatistics import ClustersStatisticsList
 
+
 def one_hot(a, num_classes):
     return np.squeeze(np.eye(num_classes)[a.reshape(-1)])
 
 
 class EM:
-    def __init__(self, data_points: np.ndarray, clusters : int, tolerance:float = 0.01,
-                 initialization:str = "kmeans", iterations:int = 100):
+    def __init__(self, data_points: np.ndarray, clusters: int, tolerance: float = 0.01,
+                 initialization: str = "kmeans", iterations: int = 100):
         self.data_points = data_points
         self.clusters = clusters
         self.tolerance = tolerance
         self.iterations = iterations
         self.loglikelihood = []
-        if initialization == "kmeans":
+        self.elapsed_time = 0
+        if initialization == "rand":
+            self.labels = self.__init_rand()
+        elif initialization == "kmeans":
             self.labels = self.__apply_kmeans()
         else:
-            self.labels = self.__init_near()
+            print('incorrect initialization, kmeans used instead. ')
+            self.labels = self.__apply_kmeans()
 
         self.weights = []
-
+        self.stats_output = None
 
     def __apply_kmeans(self):
         # define criteria, number of clusters(K) and apply kmeans()
@@ -32,21 +37,19 @@ class EM:
         label = np.uint8(label)
         return label
 
+    def __init_rand(self):
 
-    def __init_near(self):
-        min_x = np.min(self.data_points, axis=0)
-        max_x = np.max(self.data_points, axis=0)
+        sorted_data = np.sort(self.data_points)
+        centroid_index = np.random.choice(self.data_points.shape[0], self.clusters)
+        centroids = sorted_data[centroid_index, :]
 
-        space = (max_x - min_x) / (self.clusters + 1)
         distance = np.zeros((self.data_points.shape[0], self.clusters))
-
         for i in range(self.clusters):
-            distance[:, i] = np.linalg.norm(self.data_points - (1 + i) * space, axis=1)
+            distance[:, i] = np.linalg.norm(self.data_points - centroids[i, :], axis=1)
 
         label = distance.argmin(axis=1) + 1
         label = label.reshape((-1, 1))
         return label
-
 
     @staticmethod
     def __compute_membership_weights(p_all, alpha: float):
@@ -64,8 +67,6 @@ class EM:
     def __compute_mixture_model_p(self, mu_k, sigma_k):
         dimensionality = self.data_points.shape[1]
         # number of techniques we are mixing.
-
-        # Gaussian density equation
         x_mu = self.data_points - mu_k
         sigma_k_inv = np.linalg.inv(sigma_k)
         x_mu_sigma = np.dot(x_mu, sigma_k_inv)
@@ -99,7 +100,8 @@ class EM:
         # Calculate the statistic of the cluster
         cluster_statistics.compute_cluster_statistics(self.weights, self.data_points)
 
-        for i in tqdm(range(self.iterations)):
+        pbar = tqdm(range(self.iterations))
+        for i in pbar:
 
             # E - step:
             self.__expectation_step(cluster_statistics)
@@ -113,11 +115,18 @@ class EM:
             log_likelihood = EM.__calculate_likelihood(p_all, cluster_statistics)
             self.loglikelihood.append(log_likelihood)
 
-            if np.abs(log_likelihood - log_likelihood_prev) < self.tolerance :
+            log_lik_diff = np.abs(log_likelihood - log_likelihood_prev)
+            if log_lik_diff < self.tolerance:
                 break
             else:
                 log_likelihood_prev = log_likelihood
 
-        w_c = self.weights.argmax(axis=1) + 1
+            pbar.set_description("Log likelihood difference %.4f" % log_lik_diff)
 
+        w_c = self.weights.argmax(axis=1) + 1
+        self.elapsed_time = pbar.last_print_t - pbar.start_t
+        self.iterations = i + 1
+        self.stats_output = cluster_statistics.cluster_statistics_list
+        pbar.close()
+        pbar.clear()
         return w_c

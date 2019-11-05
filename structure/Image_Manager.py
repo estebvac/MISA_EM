@@ -1,11 +1,11 @@
 import nibabel as nib
 import numpy as np
-from .EM import EM
+import SimpleITK as sitk
 
 
-class Process_Data:
+class Image_Manager:
 
-    def __init__(self, path_T1:str, path_T2:str, path_GT:str=None):
+    def __init__(self, path_T1:str, path_T2:str, path_GT:str=None, preprocess=False):
 
         self.T1_path = path_T1
         self.T2_path = path_T2
@@ -14,10 +14,10 @@ class Process_Data:
         self.data_mask_flat = None
         self.affine = None
         self.header = None
-        self.data_to_cluster = self.__get_data_to_cluster()
+        self.data_to_cluster = self.__get_data_to_cluster(preprocess)
 
 
-    def __get_data_to_cluster(self):
+    def __get_data_to_cluster(self,preprocess):
         T1 = nib.load(self.T1_path)
         T2 = nib.load(self.T2_path)
         T1_data = T1.get_fdata()
@@ -32,6 +32,23 @@ class Process_Data:
         data_mask = data_mask > 0
         data_mask_flat = data_mask.reshape((-1, 1))
         self.data_mask_flat = data_mask_flat
+
+        # Store the images information without non-brain tissues
+        if preprocess:
+            corrector = sitk.GradientAnisotropicDiffusionImageFilter()
+            corrector.SetTimeStep(0.0625)
+            #corrector = sitk.N4BiasFieldCorrectionImageFilter()
+            #corrector.SetMaximumNumberOfIterations([100])
+            T1_itk = sitk.GetImageFromArray(T1_data.astype(np.float32))
+            T1_itk = sitk.Cast(T1_itk, sitk.sitkFloat32)
+            T1_itk = corrector.Execute(T1_itk)
+            T1_data = sitk.GetArrayFromImage(T1_itk)
+            T2_itk = sitk.GetImageFromArray(T2_data.astype(np.float32))
+            T2_itk = sitk.Cast(T2_itk, sitk.sitkFloat32)
+            T2_itk = corrector.Execute(T2_itk)
+            T2_data = sitk.GetArrayFromImage(T2_itk)
+
+
 
         # Turn data into vectors
         T1_data = T1_data.reshape((-1, 1))[data_mask_flat == 1]
