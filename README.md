@@ -6,7 +6,7 @@ The Expectation-Maximization (EM) algorithms are iterative methods that find the
 
 EM Segmentation Result     |  EM Data distribution  
 :-------------------------:|:-------------------------:
-![][Segmented5.pdf] |  ![][distribution_em5.png]
+![](Segmented5.pdf) |  ![](distribution_em5.png)
 
 
 # Metrics #
