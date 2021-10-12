@@ -1,6 +1,6 @@
 numpy
 nibabel
-opencv-python==3.4.5.20
+opencv-python==4.2.0.32
 opencv-contrib-python==3.4.5.20
 matplotlib
 tqdm
